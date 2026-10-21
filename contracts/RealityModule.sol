@@ -423,10 +423,34 @@ abstract contract RealityModule is Module {
         string memory proposalId,
         bytes32[] memory txHashes
     ) public pure returns (string memory) {
+        requireReasonableProposalId(proposalId);
         string memory txsHash = bytes32ToAsciiString(
             keccak256(abi.encodePacked(txHashes))
         );
         return string(abi.encodePacked(proposalId, bytes3(0xe2909f), txsHash));
+    }
+
+    /// @dev Reverts unless `proposalId` is 1-128 bytes long and consists solely
+    ///      of ASCII alphanumerics, hyphen (`-`) and underscore (`_`).
+    /// @notice 
+    ///      proposalId is interpolated into the oracle question and shown to human answerers via a JSON template
+    ///      Attacks can be detected at the social layer and usually just cause the attacker to lose their bond
+    ///      However it's easier for humans if the proposal ID is always just an ID.
+    ///      In practice Snapshot proposal IDs are either CIDs or 32-byte hashes.
+    ///      But we leave room for reasonable alternatives.
+    function requireReasonableProposalId(string memory proposalId) internal pure {
+        bytes memory b = bytes(proposalId);
+        require(b.length > 0, "proposalId must not be empty");
+        require(b.length <= 128, "proposalId too long");
+        for (uint256 i = 0; i < b.length; i++) {
+            uint8 c = uint8(b[i]);
+            bool ok = (c >= 0x30 && c <= 0x39) || // 0-9
+                (c >= 0x41 && c <= 0x5a) || // A-Z
+                (c >= 0x61 && c <= 0x7a) || // a-z
+                c == 0x2d || // -
+                c == 0x5f; // _
+            require(ok, "proposalId has invalid characters");
+        }
     }
 
     /// @dev Generate the question id.
